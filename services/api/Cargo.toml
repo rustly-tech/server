@@ -1,0 +1,41 @@
+[package]
+name = "rustly-api"
+description = "The Rustly control-plane HTTP API."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+# Enable the PostgreSQL backend. Without it the binary runs in-memory only,
+# which is what `cargo run` on a laptop should do.
+postgres = ["rustly-storage/postgres"]
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+futures-util.workspace = true
+rustly-auth.workspace = true
+rustly-common.workspace = true
+rustly-community.workspace = true
+rustly-domain.workspace = true
+rustly-progress.workspace = true
+rustly-protocol.workspace = true
+rustly-ranking.workspace = true
+rustly-storage = { workspace = true, features = ["memory"] }
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+tower = { workspace = true, features = ["util"] }

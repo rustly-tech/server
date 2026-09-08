@@ -1,0 +1,20 @@
+[package]
+name = "rustly-auth"
+description = "Authentication and authorisation for the Rustly control plane."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+base64.workspace = true
+hmac.workspace = true
+rustly-common.workspace = true
+rustly-domain.workspace = true
+rustly-protocol.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true

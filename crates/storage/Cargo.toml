@@ -1,0 +1,37 @@
+[package]
+name = "rustly-storage"
+description = "MetadataStore abstraction for the Rustly control plane, with in-memory and PostgreSQL backends."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["memory"]
+# The in-memory backend. Used by tests and by `RUSTLY_STORE=memory` local runs.
+memory = []
+# The PostgreSQL backend. Neon-compatible; no Neon-specific behaviour.
+postgres = ["dep:sqlx"]
+# The backend-agnostic conformance suite. Every backend must pass it identically.
+testing = []
+
+[dependencies]
+async-trait.workspace = true
+rustly-common.workspace = true
+rustly-domain.workspace = true
+rustly-progress.workspace = true
+rustly-protocol.workspace = true
+rustly-ranking.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { workspace = true, optional = true }
+time.workspace = true
+tokio = { workspace = true }
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+rustly-storage = { path = ".", features = ["memory", "testing"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

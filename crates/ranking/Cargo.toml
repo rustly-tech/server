@@ -1,0 +1,16 @@
+[package]
+name = "rustly-ranking"
+description = "Replaceable ranking and level models for Rustly. The v0 model is explicitly provisional."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+rustly-domain.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

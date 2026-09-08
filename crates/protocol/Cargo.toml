@@ -1,0 +1,18 @@
+[package]
+name = "rustly-protocol"
+description = "Versioned wire contracts for the Rustly HTTP API and the judge broker."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+rustly-common.workspace = true
+rustly-domain.workspace = true
+rustly-progress.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

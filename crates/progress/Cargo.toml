@@ -1,0 +1,16 @@
+[package]
+name = "rustly-progress"
+description = "Local-first progress checkpoints: compact, idempotent, monotonic merge."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+rustly-common.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -1,0 +1,47 @@
+# cargo-deny configuration. See rustly-tech/.github docs/DEPENDENCY_POLICY.md.
+
+[advisories]
+version = 2
+yanked = "deny"
+# Every ignore needs a comment naming the tracking issue and an expiry intent.
+ignore = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+    "OpenSSL",
+]
+
+[[licenses.exceptions]]
+# ring vendors BoringSSL-derived code under a combined licence expression that
+# cargo-deny cannot decompose. Reviewed and accepted: it is the TLS backend
+# sqlx uses, and the terms are permissive.
+name = "ring"
+allow = ["ISC", "MIT", "OpenSSL"]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+    # Domain logic must not reach a cloud provider SDK directly. Providers are
+    # replaceable accelerators, reached through ObjectStore / MetadataStore /
+    # ArtifactSource / JobQueue / RealtimeTransport.
+    { name = "aws-sdk-s3" },
+    { name = "google-cloud-storage" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
