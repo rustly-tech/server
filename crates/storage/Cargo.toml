@@ -33,5 +33,5 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-rustly-storage = { path = ".", features = ["memory", "testing"] }
+rustly-storage = { path = ".", version = "0.1.0", features = ["memory", "testing"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

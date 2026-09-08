@@ -4,7 +4,13 @@
 version = 2
 yanked = "deny"
 # Every ignore needs a comment naming the tracking issue and an expiry intent.
-ignore = []
+ignore = [
+    # Marvin attack in `rsa`, no fixed release. Present in Cargo.lock only via
+    # sqlx's optional MySQL driver, which this workspace never enables, so the
+    # vulnerable code is never compiled. Revisit when sqlx drops it or `rsa`
+    # publishes a fix. Tracked in rustly-tech/core#1.
+    "RUSTSEC-2023-0071",
+]
 
 [licenses]
 version = 2
@@ -21,6 +27,9 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",
     "OpenSSL",
+    # webpki-roots ships the Mozilla CA bundle as data under CDLA-Permissive-2.0.
+    # Permissive, no copyleft obligations on our code.
+    "CDLA-Permissive-2.0",
 ]
 
 [[licenses.exceptions]]

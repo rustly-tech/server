@@ -19,11 +19,19 @@ jobs:
   rust:
     uses: rustly-tech/.github/.github/workflows/rust-ci.yml@main
     with:
-      msrv: "1.85.0"
+      msrv: "1.88.0"
       features: "--all-features"
 
   security:
     uses: rustly-tech/.github/.github/workflows/rust-security.yml@main
+    with:
+      # RUSTSEC-2023-0071 (Marvin attack in `rsa`) has no fixed release.
+      # `rsa` reaches Cargo.lock only through sqlx's optional MySQL driver,
+      # which this workspace never enables and never compiles - cargo-deny's
+      # graph-aware advisories check passes for exactly that reason. cargo-audit
+      # reads the lockfile, so it needs to be told. Revisit when sqlx drops the
+      # dependency or `rsa` ships a fix. Tracked in rustly-tech/core#1.
+      audit-ignore: "RUSTSEC-2023-0071"
 
   postgres:
     name: postgres conformance

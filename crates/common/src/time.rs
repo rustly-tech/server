@@ -12,14 +12,22 @@ use time::OffsetDateTime;
 pub struct Timestamp(#[serde(with = "time::serde::rfc3339")] OffsetDateTime);
 
 impl Timestamp {
-    /// The current instant.
+    /// The current instant, truncated to microseconds.
     pub fn now() -> Self {
-        Self(OffsetDateTime::now_utc())
+        Self::from_offset(OffsetDateTime::now_utc())
     }
 
-    /// Wrap an existing instant, normalising to UTC.
+    /// Wrap an existing instant, normalising to UTC and to microseconds.
+    ///
+    /// Truncation is not cosmetic. PostgreSQL `timestamptz` stores
+    /// microseconds, so a nanosecond-precision value does not survive a
+    /// round-trip. Without this, a progress checkpoint written and read back
+    /// would compare as *newer* than what was stored, and the idempotent merge
+    /// would report a change on every replay.
     pub fn from_offset(value: OffsetDateTime) -> Self {
-        Self(value.to_offset(time::UtcOffset::UTC))
+        let utc = value.to_offset(time::UtcOffset::UTC);
+        let micros = utc.nanosecond() / 1_000 * 1_000;
+        Self(utc.replace_nanosecond(micros).unwrap_or(utc))
     }
 
     /// The underlying instant.
@@ -111,6 +119,16 @@ mod tests {
         assert!(!now.plus_seconds(-day - 1).within_seconds_before(now, day));
         // A future-dated event is not "recent"; it is a clock-skew bug.
         assert!(!now.plus_seconds(1).within_seconds_before(now, day));
+    }
+
+    #[test]
+    fn precision_is_microseconds_so_a_postgres_round_trip_is_lossless() {
+        let nanos = OffsetDateTime::from_unix_timestamp_nanos(1_700_000_000_123_456_789).unwrap();
+        let ts = Timestamp::from_offset(nanos);
+        assert_eq!(ts.as_offset().nanosecond(), 123_456_000);
+        // Re-wrapping is a no-op: truncation is idempotent.
+        assert_eq!(Timestamp::from_offset(ts.as_offset()), ts);
+        assert_eq!(Timestamp::now().as_offset().nanosecond() % 1_000, 0);
     }
 
     #[test]
