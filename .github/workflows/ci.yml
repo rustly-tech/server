@@ -30,7 +30,7 @@ jobs:
       # which this workspace never enables and never compiles - cargo-deny's
       # graph-aware advisories check passes for exactly that reason. cargo-audit
       # reads the lockfile, so it needs to be told. Revisit when sqlx drops the
-      # dependency or `rsa` ships a fix. Tracked in rustly-tech/core#10.
+      # dependency or `rsa` ships a fix. Tracked in rustly-tech/server#10.
       audit-ignore: "RUSTSEC-2023-0071"
 
   postgres:
