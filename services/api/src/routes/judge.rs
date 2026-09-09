@@ -59,6 +59,15 @@ pub async fn lease(
     Json(body): Json<LeaseRequest>,
 ) -> Result<Json<LeaseResponse>, ApiError> {
     let (worker_id, token_trust) = worker(&principal, &request_id)?;
+    state
+        .rate_limits
+        .check(
+            "judge_lease",
+            &worker_id,
+            120,
+            std::time::Duration::from_secs(60),
+        )
+        .map_err(|error| ApiError::new(error, request_id.clone()))?;
 
     if body.protocol_version != BROKER_PROTOCOL_VERSION {
         return Err(ApiError::new(
@@ -151,6 +160,15 @@ pub async fn heartbeat(
     Json(body): Json<HeartbeatRequest>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let (worker_id, _) = worker(&principal, &request_id)?;
+    state
+        .rate_limits
+        .check(
+            "judge_heartbeat",
+            &worker_id,
+            240,
+            std::time::Duration::from_secs(60),
+        )
+        .map_err(|error| ApiError::new(error, request_id.clone()))?;
     if body.worker_id != worker_id {
         return Err(ApiError::new(
             Error::Forbidden("worker_id does not match the credential".into()),
@@ -197,6 +215,15 @@ pub async fn result(
     Json(body): Json<ResultReport>,
 ) -> Result<Json<ResultAck>, ApiError> {
     let (worker_id, _) = worker(&principal, &request_id)?;
+    state
+        .rate_limits
+        .check(
+            "judge_result",
+            &worker_id,
+            120,
+            std::time::Duration::from_secs(60),
+        )
+        .map_err(|error| ApiError::new(error, request_id.clone()))?;
     if body.worker_id != worker_id {
         return Err(ApiError::new(
             Error::Forbidden("worker_id does not match the credential".into()),

@@ -7,6 +7,8 @@
 | `RUSTLY_BIND` | `0.0.0.0:8080` | Listen address |
 | `DATABASE_URL` | unset | PostgreSQL URL; unset uses the in-memory store |
 | `RUSTLY_TOKEN_SECRET` | required with a database | Token signing key of at least 32 bytes |
+| `RUSTLY_ARTIFACT_TOKEN_SECRET` | required with a database | Upload grant/receipt key shared with the artifact gateway |
+| `RUSTLY_ARTIFACT_GATEWAY_URL` | `http://127.0.0.1:8081` | Browser-visible artifact gateway base URL |
 | `RUSTLY_BUILD` | `dev` | Build identifier returned by `/api/version` |
 | `RUSTLY_LOG_FORMAT` | `human` | Use `json` for structured logs |
 | `RUSTLY_SEED_SLICE` | `1` | Seed the Ownership product slice in memory |
@@ -26,6 +28,7 @@ docker run -d --name rustly-pg \
 
 DATABASE_URL=postgres://postgres:rustly@localhost:5432/rustly \
 RUSTLY_TOKEN_SECRET=a-development-secret-of-at-least-32-bytes \
+RUSTLY_ARTIFACT_TOKEN_SECRET=a-separate-development-secret-32-bytes \
 cargo run -p rustly-api --features postgres
 ```
 

@@ -22,6 +22,7 @@ use rustly_protocol::broker::TrustClass;
 use rustly_protocol::BROKER_PROTOCOL_VERSION;
 use rustly_storage::memory::MemoryStore;
 use rustly_storage::MetadataStore;
+use rustly_upload_protocol::{UploadReceipt, UploadTokens};
 use serde_json::{json, Value};
 use tower::ServiceExt as _;
 
@@ -30,13 +31,16 @@ struct Harness {
     user_token: String,
     user_id: UserId,
     issuer: TokenIssuer,
+    upload_tokens: UploadTokens,
 }
 
 impl Harness {
     async fn new() -> Self {
         let store: Arc<dyn MetadataStore> = Arc::new(MemoryStore::new());
         let issuer = TokenIssuer::new(vec![0x11u8; 32]).unwrap();
-        let state = AppState::new(Arc::clone(&store), issuer.clone(), "test-build");
+        let upload_tokens = UploadTokens::new(vec![0x6bu8; 32]).unwrap();
+        let state = AppState::new(Arc::clone(&store), issuer.clone(), "test-build")
+            .with_artifact_gateway(upload_tokens.clone(), "https://artifacts.test");
         let user_id = seed::ownership_slice(&store).await.expect("seed the slice");
         let user_token = issuer.issue_user(user_id, &Scope::USER_DEFAULT, Timestamp::now(), 3600);
 
@@ -45,7 +49,18 @@ impl Harness {
             user_token,
             user_id,
             issuer,
+            upload_tokens,
         }
+    }
+
+    fn source_receipt(&self, cid: &str) -> String {
+        self.upload_tokens.sign_receipt(&UploadReceipt {
+            user_id: self.user_id.to_string(),
+            cid: cid.into(),
+            size: 32,
+            expires_at: Timestamp::now().unix_seconds() + 3600,
+            nonce: uuid::Uuid::new_v4().to_string(),
+        })
     }
 
     fn worker_token(&self, worker_id: &str, trust: TrustClass) -> String {
@@ -115,6 +130,101 @@ async fn health_readiness_and_version_are_served() {
         body["ranking_provisional"], true,
         "the API must admit that the ranking model is provisional"
     );
+}
+
+#[tokio::test]
+async fn guest_auth_and_upload_grants_bind_storage_to_the_user_and_cid() {
+    let h = Harness::new().await;
+    let (status, guest) = h.post("/api/v1/auth/guest", None, json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(guest["access_token"].as_str().unwrap().starts_with("v1."));
+    assert!(guest["username"].as_str().unwrap().starts_with("guest-"));
+
+    let cid = format!("b3:{}", "a".repeat(64));
+    let (status, grant) = h
+        .post(
+            "/api/v1/uploads/source",
+            Some(&h.user_token),
+            json!({"cid": cid, "size": 12}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        grant["upload_url"],
+        format!("https://artifacts.test/api/v1/uploads/{cid}")
+    );
+    let claims = h
+        .upload_tokens
+        .verify_grant(
+            grant["grant"].as_str().unwrap(),
+            Timestamp::now().unix_seconds(),
+        )
+        .unwrap();
+    assert_eq!(claims.user_id, h.user_id.to_string());
+    assert_eq!(claims.cid, cid);
+    assert_eq!(claims.size, 12);
+
+    let (status, body) = h
+        .post(
+            "/api/v1/submissions",
+            Some(&h.user_token),
+            json!({
+                "trial": "ownership-move-or-borrow",
+                "source_cid": "b3:different",
+                "source_receipt": h.source_receipt("b3:source"),
+                "idempotency_key": "mismatch"
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], "invalid_request");
+}
+
+#[tokio::test]
+async fn framework_failures_are_json_and_guest_auth_is_rate_limited() {
+    let h = Harness::new().await;
+    for attempt in 0..6 {
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/auth/guest")
+            .header("cf-connecting-ip", "203.0.113.7")
+            .body(Body::empty())
+            .unwrap();
+        let response = h.app.clone().oneshot(request).await.unwrap();
+        if attempt < 5 {
+            assert_eq!(response.status(), StatusCode::OK);
+        } else {
+            assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+            assert!(response.headers().contains_key(header::RETRY_AFTER));
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            let body: Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(body["code"], "rate_limited");
+        }
+    }
+
+    for (method, uri, expected) in [
+        (Method::GET, "/missing", StatusCode::NOT_FOUND),
+        (Method::PUT, "/health", StatusCode::METHOD_NOT_ALLOWED),
+    ] {
+        let response = h
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+        assert!(response.headers().contains_key("x-request-id"));
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(body["request_id"].as_str().is_some());
+    }
 }
 
 #[tokio::test]
@@ -271,6 +381,7 @@ async fn the_full_submit_lease_judge_loop_updates_rank_status_and_the_feed() {
     let submit = json!({
         "trial": "ownership-move-or-borrow",
         "source_cid": "b3:aaaabbbbccccdddd",
+        "source_receipt": h.source_receipt("b3:aaaabbbbccccdddd"),
         "idempotency_key": "attempt-1"
     });
     let (status, created) = h
@@ -432,6 +543,7 @@ async fn hidden_tests_are_never_dispatched_to_an_untrusted_worker() {
         json!({
             "trial": "ownership-move-or-borrow",
             "source_cid": "b3:source",
+            "source_receipt": h.source_receipt("b3:source"),
             "idempotency_key": "attempt-volunteer"
         }),
     )
@@ -524,6 +636,7 @@ async fn a_submission_belonging_to_someone_else_is_reported_as_missing() {
             json!({
                 "trial": "ownership-move-or-borrow",
                 "source_cid": "b3:source",
+                "source_receipt": h.source_receipt("b3:source"),
                 "idempotency_key": "attempt-privacy"
             }),
         )
@@ -597,6 +710,7 @@ async fn revealing_solutions_forfeits_rank_credit_but_still_solves() {
             json!({
                 "trial": "ownership-move-or-borrow",
                 "source_cid": "b3:source",
+                "source_receipt": h.source_receipt("b3:source"),
                 "idempotency_key": "after-reveal"
             }),
         )
@@ -658,6 +772,7 @@ async fn an_infrastructure_failure_is_never_reported_as_the_users_fault() {
             json!({
                 "trial": "ownership-move-or-borrow",
                 "source_cid": "b3:source",
+                "source_receipt": h.source_receipt("b3:source"),
                 "idempotency_key": "infra"
             }),
         )

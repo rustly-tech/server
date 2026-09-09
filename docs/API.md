@@ -40,8 +40,11 @@ Every non-2xx response has the same body:
 { "code": "not_found", "message": "trial not found: ownership", "request_id": "018f..." }
 ```
 
-`code` values are stable: `not_found`, `invalid_request`, `conflict`,
-`unauthenticated`, `forbidden`, `dependency_unavailable`, `internal`.
+`code` values are stable. They include `not_found`, `invalid_request`,
+`conflict`, `unauthenticated`, `forbidden`, `rate_limited`,
+`dependency_unavailable`, `internal`, and codes for framework failures such as
+`method_not_allowed` and `payload_too_large`. A `429` response includes
+`Retry-After`.
 
 Dependency and internal failures are logged in full and summarised to the
 caller. A connection string never reaches a client.
@@ -53,6 +56,18 @@ characters of `[A-Za-z0-9._-]`; anything else is replaced with a fresh UUID
 rather than echoed, because the value ends up in logs and response bodies.
 
 ## Endpoints
+
+### `POST /api/v1/auth/guest`
+
+Creates a durable guest identity for the first Trial and returns a user bearer
+token valid for 24 hours. This provides an authenticated submission path while
+account-provider login remains unfinished.
+
+### `POST /api/v1/uploads/source`
+
+Requires `submit`. The browser sends a canonical BLAKE3 CID and exact byte size.
+The response contains a five-minute capability for a direct PUT to the artifact
+gateway. After verifying the bytes, the gateway returns a signed receipt.
 
 ### `GET /health`
 
@@ -158,8 +173,17 @@ quiz clicks, or local Runs (invariant C).
 Requires `submit`. Body carries a **CID**, not source:
 
 ```json
-{ "trial": "ownership-move-or-borrow", "source_cid": "b3:...", "idempotency_key": "..." }
+{
+  "trial": "ownership-move-or-borrow",
+  "source_cid": "b3:...",
+  "source_receipt": "v1.receipt....",
+  "idempotency_key": "..."
+}
 ```
+
+The receipt binds the CID to the authenticated user and proves the artifact
+gateway verified and stored the source. The API rejects forged, expired, or
+cross-user receipts.
 
 `202` on creation, `200` with `"idempotent_replay": true` when the idempotency
 key has been seen. The `job_id` is minted once and is immutable.

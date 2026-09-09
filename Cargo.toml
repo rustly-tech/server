@@ -28,6 +28,7 @@ rustly-domain = { path = "crates/domain", version = "0.1.0" }
 rustly-protocol = { path = "crates/protocol", version = "0.1.0" }
 rustly-auth = { path = "crates/auth", version = "0.1.0" }
 rustly-storage = { path = "crates/storage", version = "0.1.0" }
+rustly-upload-protocol = { version = "0.1.0", git = "https://github.com/rustly-tech/storage", rev = "2a66439e48c8571c7ac6016ce765e8888805c535", package = "rustly-upload-protocol" }
 rustly-ranking = { path = "crates/ranking", version = "0.1.0" }
 rustly-progress = { path = "crates/progress", version = "0.1.0" }
 rustly-community = { path = "crates/community", version = "0.1.0" }

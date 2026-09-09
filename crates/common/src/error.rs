@@ -41,6 +41,13 @@ pub enum Error {
     #[error("forbidden: {0}")]
     Forbidden(String),
 
+    /// Caller exceeded a bounded public operation rate.
+    #[error("rate limit exceeded; retry in {retry_after_seconds} seconds")]
+    RateLimited {
+        /// Whole seconds until the current window resets.
+        retry_after_seconds: u64,
+    },
+
     /// A dependency (database, queue, upstream) failed.
     ///
     /// This is deliberately distinct from [`Error::Invalid`]: an infrastructure
@@ -98,6 +105,7 @@ impl Error {
             Self::Conflict(_) => "conflict",
             Self::Unauthenticated(_) => "unauthenticated",
             Self::Forbidden(_) => "forbidden",
+            Self::RateLimited { .. } => "rate_limited",
             Self::Dependency { .. } => "dependency_unavailable",
             Self::Internal(_) => "internal",
         }
@@ -115,6 +123,7 @@ impl Error {
                 | Self::Conflict(_)
                 | Self::Unauthenticated(_)
                 | Self::Forbidden(_)
+                | Self::RateLimited { .. }
         )
     }
 }

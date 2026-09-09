@@ -8,7 +8,10 @@ use rustly_protocol::api::SubmissionEvent;
 use rustly_ranking::{ProvisionalV0, RankingModel};
 use rustly_storage::memory::MemoryStore;
 use rustly_storage::MetadataStore;
+use rustly_upload_protocol::UploadTokens;
 use tokio::sync::broadcast;
+
+use crate::rate_limit::RateLimiter;
 
 /// Capacity of the submission event bus.
 ///
@@ -23,12 +26,18 @@ pub struct AppState {
     pub store: Arc<dyn MetadataStore>,
     /// Token issuer and verifier.
     pub tokens: Arc<TokenIssuer>,
+    /// Upload grant and receipt signer, shared with the artifact gateway.
+    pub upload_tokens: Arc<UploadTokens>,
+    /// Browser-visible artifact gateway base URL.
+    pub artifact_gateway_url: String,
     /// The ranking model in force. Behind a trait so it stays replaceable.
     pub ranking: Arc<dyn RankingModel>,
     /// Build identifier.
     pub build: String,
     /// Submission state transitions, fanned out to SSE subscribers.
     pub events: broadcast::Sender<SubmissionEvent>,
+    /// Basic per-process public endpoint rate limits.
+    pub rate_limits: RateLimiter,
 }
 
 impl std::fmt::Debug for AppState {
@@ -51,10 +60,26 @@ impl AppState {
         Self {
             store,
             tokens: Arc::new(tokens),
+            upload_tokens: Arc::new(
+                UploadTokens::new(vec![0x6b; 32]).expect("static development key is valid"),
+            ),
+            artifact_gateway_url: "http://127.0.0.1:8081".into(),
             ranking: Arc::new(ProvisionalV0),
             build: build.into(),
             events,
+            rate_limits: RateLimiter::default(),
         }
+    }
+
+    /// Configure the storage capability boundary.
+    pub fn with_artifact_gateway(
+        mut self,
+        tokens: UploadTokens,
+        base_url: impl Into<String>,
+    ) -> Self {
+        self.upload_tokens = Arc::new(tokens);
+        self.artifact_gateway_url = base_url.into().trim_end_matches('/').to_owned();
+        self
     }
 
     /// An in-memory state for tests and local development.

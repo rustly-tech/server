@@ -4,7 +4,7 @@
 //! matters: a new error variant cannot accidentally become a 500, and an
 //! infrastructure failure cannot leak a connection string to a caller.
 
-use axum::http::StatusCode;
+use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use rustly_common::Error;
@@ -36,6 +36,7 @@ impl ApiError {
             Error::Conflict(_) => StatusCode::CONFLICT,
             Error::Unauthenticated(_) => StatusCode::UNAUTHORIZED,
             Error::Forbidden(_) => StatusCode::FORBIDDEN,
+            Error::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             Error::Dependency { .. } => StatusCode::SERVICE_UNAVAILABLE,
             Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -70,7 +71,19 @@ impl IntoResponse for ApiError {
             message,
             request_id: self.request_id,
         };
-        (status, Json(body)).into_response()
+        let retry_after = match self.error {
+            Error::RateLimited {
+                retry_after_seconds,
+            } => Some(retry_after_seconds),
+            _ => None,
+        };
+        let mut response = (status, Json(body)).into_response();
+        if let Some(seconds) = retry_after {
+            if let Ok(value) = HeaderValue::from_str(&seconds.to_string()) {
+                response.headers_mut().insert(header::RETRY_AFTER, value);
+            }
+        }
+        response
     }
 }
 
@@ -96,6 +109,12 @@ mod tests {
                 StatusCode::UNAUTHORIZED,
             ),
             (Error::Forbidden("no".into()), StatusCode::FORBIDDEN),
+            (
+                Error::RateLimited {
+                    retry_after_seconds: 1,
+                },
+                StatusCode::TOO_MANY_REQUESTS,
+            ),
             (
                 Error::dependency("postgres", std::io::Error::other("down")),
                 StatusCode::SERVICE_UNAVAILABLE,

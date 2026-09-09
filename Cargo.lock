@@ -1214,6 +1214,7 @@ dependencies = [
  "rustly-protocol",
  "rustly-ranking",
  "rustly-storage",
+ "rustly-upload-protocol",
  "serde",
  "serde_json",
  "time",
@@ -1321,6 +1322,20 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "rustly-upload-protocol"
+version = "0.1.0"
+source = "git+https://github.com/rustly-tech/storage?rev=2a66439e48c8571c7ac6016ce765e8888805c535#2a66439e48c8571c7ac6016ce765e8888805c535"
+dependencies = [
+ "base64",
+ "hmac",
+ "serde",
+ "serde_json",
+ "sha2",
+ "subtle",
+ "thiserror",
 ]
 
 [[package]]

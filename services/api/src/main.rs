@@ -8,6 +8,7 @@ use rustly_api::AppState;
 use rustly_auth::TokenIssuer;
 use rustly_storage::memory::MemoryStore;
 use rustly_storage::MetadataStore;
+use rustly_upload_protocol::UploadTokens;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -40,7 +41,10 @@ async fn main() -> anyhow::Result<()> {
 
     let tokens = TokenIssuer::new(config.token_secret.clone())
         .map_err(|e| anyhow::anyhow!("token issuer: {e}"))?;
-    let state = AppState::new(Arc::clone(&store), tokens, config.build.clone());
+    let upload_tokens = UploadTokens::new(config.artifact_token_secret.clone())
+        .map_err(|e| anyhow::anyhow!("artifact token issuer: {e}"))?;
+    let state = AppState::new(Arc::clone(&store), tokens, config.build.clone())
+        .with_artifact_gateway(upload_tokens, config.artifact_gateway_url.clone());
 
     if config.seed_slice && matches!(config.backend, Backend::Memory) {
         match rustly_api::seed::ownership_slice(&store).await {

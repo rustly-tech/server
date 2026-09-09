@@ -24,6 +24,10 @@ pub struct Config {
     pub backend: Backend,
     /// Token signing secret.
     pub token_secret: Vec<u8>,
+    /// Shared secret used only for artifact upload grants and receipts.
+    pub artifact_token_secret: Vec<u8>,
+    /// Public base URL of the artifact gateway.
+    pub artifact_gateway_url: String,
     /// Build identifier, normally the git SHA.
     pub build: String,
     /// Emit JSON logs.
@@ -65,10 +69,32 @@ impl Config {
             }
         };
 
+        let artifact_token_secret = match std::env::var("RUSTLY_ARTIFACT_TOKEN_SECRET") {
+            Ok(secret) if secret.len() >= 32 => secret.into_bytes(),
+            Ok(_) => {
+                return Err(Error::invalid(
+                    "RUSTLY_ARTIFACT_TOKEN_SECRET",
+                    "must be at least 32 bytes",
+                ))
+            }
+            Err(_) if backend == Backend::Memory => token_secret.clone(),
+            Err(_) => {
+                return Err(Error::invalid(
+                    "RUSTLY_ARTIFACT_TOKEN_SECRET",
+                    "must be set when a database is configured",
+                ))
+            }
+        };
+
         Ok(Self {
             bind: std::env::var("RUSTLY_BIND").unwrap_or_else(|_| "0.0.0.0:8080".into()),
             backend,
             token_secret,
+            artifact_token_secret,
+            artifact_gateway_url: std::env::var("RUSTLY_ARTIFACT_GATEWAY_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:8081".into())
+                .trim_end_matches('/')
+                .to_owned(),
             build: std::env::var("RUSTLY_BUILD").unwrap_or_else(|_| "dev".into()),
             json_logs: std::env::var("RUSTLY_LOG_FORMAT").as_deref() == Ok("json"),
             seed_slice: std::env::var("RUSTLY_SEED_SLICE").as_deref() != Ok("0"),

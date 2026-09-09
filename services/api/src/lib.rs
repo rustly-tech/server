@@ -17,6 +17,8 @@
 //! | GET | `/api/version` | API and broker protocol versions, ranking model id. |
 //! | GET | `/api/v1/users/{username}` | Minimal public profile. |
 //! | GET | `/api/v1/me` | The caller's own account. |
+//! | POST | `/api/v1/auth/guest` | Create a guest identity and session. |
+//! | POST | `/api/v1/uploads/source` | Create a direct source-upload grant. |
 //! | GET | `/api/v1/trials` | Listed Trials, filterable. |
 //! | GET | `/api/v1/trials/{slug}` | One Trial's metadata. |
 //! | POST | `/api/v1/trials/{slug}/reveal` | Reveal solutions, forfeiting rank credit. |
@@ -38,6 +40,8 @@
 pub mod config;
 pub mod error;
 pub mod extract;
+pub mod http_contract;
+pub mod rate_limit;
 pub mod routes;
 pub mod seed;
 pub mod state;

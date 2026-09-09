@@ -57,6 +57,37 @@ pub struct ErrorResponse {
     pub request_id: String,
 }
 
+/// A short-lived authenticated browser session for trying a Trial.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuestSessionResponse {
+    /// Bearer token for Rustly API requests.
+    pub access_token: String,
+    /// Token expiry as Unix seconds.
+    pub expires_at: i64,
+    /// Generated account name retained with the submission.
+    pub username: String,
+}
+
+/// Request for a direct source upload capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UploadGrantRequest {
+    /// BLAKE3 CID the browser computed for the source.
+    pub cid: String,
+    /// Exact source size in bytes.
+    pub size: u64,
+}
+
+/// Capability for a direct browser-to-artifact-store upload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UploadGrantResponse {
+    /// URL that accepts a PUT of the exact source bytes.
+    pub upload_url: String,
+    /// Short-lived bearer capability accepted only by the artifact gateway.
+    pub grant: String,
+    /// Grant expiry as Unix seconds.
+    pub expires_at: i64,
+}
+
 /// Response of `GET /api/v1/users/{username}`.
 ///
 /// A thin envelope around [`PublicProfile`] so we can add response-level
@@ -176,6 +207,8 @@ pub struct CreateSubmissionRequest {
     pub trial: String,
     /// BLAKE3 CID of the submitted source.
     pub source_cid: String,
+    /// Signed proof that trusted storage accepted bytes matching `source_cid`.
+    pub source_receipt: String,
     /// Client-generated idempotency key. Replaying the same key returns the
     /// original submission rather than creating a second one.
     pub idempotency_key: String,
@@ -250,6 +283,7 @@ mod tests {
         let json = serde_json::json!({
             "trial": "ownership-move-or-borrow",
             "source_cid": "b3:2f1c...",
+            "source_receipt": "v1.receipt.example.signature",
             "idempotency_key": "01H..."
         });
         let req: CreateSubmissionRequest = serde_json::from_value(json).unwrap();
@@ -258,10 +292,8 @@ mod tests {
         // The contract has no field that could carry a program body.
         let value = serde_json::to_value(&req).unwrap();
         let keys: Vec<_> = value.as_object().unwrap().keys().cloned().collect();
-        assert_eq!(keys.len(), 3);
-        assert!(!keys
-            .iter()
-            .any(|k| k.contains("source") && !k.ends_with("_cid")));
+        assert_eq!(keys.len(), 4);
+        assert!(!keys.iter().any(|key| key == "source" || key == "code"));
     }
 
     #[test]

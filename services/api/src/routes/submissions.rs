@@ -56,8 +56,35 @@ pub async fn create(
     let user_id = principal
         .user_id()
         .ok_or_else(|| ApiError::new(Error::Forbidden("not a user".into()), request_id.clone()))?;
+    state
+        .rate_limits
+        .check(
+            "submission",
+            &user_id.to_string(),
+            10,
+            std::time::Duration::from_secs(60),
+        )
+        .map_err(|error| ApiError::new(error, request_id.clone()))?;
 
     validate_cid(&body.source_cid).map_err(|e| ApiError::new(e, request_id.clone()))?;
+    let receipt = state
+        .upload_tokens
+        .verify_receipt(&body.source_receipt, Timestamp::now().unix_seconds())
+        .map_err(|_| {
+            ApiError::new(
+                Error::invalid("source_receipt", "invalid or expired storage receipt"),
+                request_id.clone(),
+            )
+        })?;
+    if receipt.user_id != user_id.to_string() || receipt.cid != body.source_cid {
+        return Err(ApiError::new(
+            Error::invalid(
+                "source_receipt",
+                "receipt does not match this source and user",
+            ),
+            request_id.clone(),
+        ));
+    }
     if body.idempotency_key.is_empty() || body.idempotency_key.len() > MAX_IDEMPOTENCY_KEY_LEN {
         return Err(ApiError::new(
             Error::invalid("idempotency_key", "must be 1-128 characters"),
