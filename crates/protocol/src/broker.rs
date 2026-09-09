@@ -178,6 +178,8 @@ pub struct ResultReport {
     pub protocol_version: u32,
     /// Worker reporting.
     pub worker_id: String,
+    /// Immutable Trial package that produced this result.
+    pub trial_package_cid: String,
     /// Final verdict.
     pub verdict: Verdict,
     /// BLAKE3 hash of the full result manifest stored in the data plane.
@@ -281,6 +283,7 @@ mod tests {
         let report = ResultReport {
             protocol_version: crate::BROKER_PROTOCOL_VERSION,
             worker_id: "w1".into(),
+            trial_package_cid: "b3:trial-package".into(),
             verdict: Verdict::Accepted,
             result_manifest_hash: "b3:cc".into(),
             peak_memory_bytes: 1024,

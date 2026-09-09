@@ -63,6 +63,7 @@ pub async fn run_suite<S: MetadataStore + ?Sized>(store: &S) {
     trials_and_listing(store).await;
     progress_is_idempotent(store).await;
     submission_idempotency(store).await;
+    submission_keeps_its_evaluation_package(store).await;
     hidden_tests_reach_only_trusted_workers(store).await;
     accepted_result_is_idempotent_and_updates_rank(store).await;
     system_faults_do_not_touch_user_state(store).await;
@@ -230,6 +231,7 @@ async fn submission_idempotency<S: MetadataStore + ?Sized>(store: &S) {
         user_id: user.id,
         trial_id: t.id,
         trial_version: t.version,
+        trial_package_cid: t.content_cid.clone(),
         source_cid: "b3:source".into(),
         idempotency_key: unique("idem-"),
     };
@@ -271,6 +273,7 @@ async fn hidden_tests_reach_only_trusted_workers<S: MetadataStore + ?Sized>(stor
                 user_id: user.id,
                 trial_id: t.id,
                 trial_version: t.version,
+                trial_package_cid: t.content_cid.clone(),
                 source_cid: "b3:source".into(),
                 idempotency_key: unique("idem-"),
             })
@@ -297,6 +300,47 @@ async fn hidden_tests_reach_only_trusted_workers<S: MetadataStore + ?Sized>(stor
     }
 }
 
+async fn submission_keeps_its_evaluation_package<S: MetadataStore + ?Sized>(store: &S) {
+    let user = store
+        .create_user(&Username::parse(&unique("snapshot")).unwrap())
+        .await
+        .unwrap();
+    let mut t = trial(
+        &unique("t-snapshot-"),
+        Difficulty::Easy,
+        TrialLifecycle::Verified,
+    );
+    t.content_cid = "b3:evaluation-v1".into();
+    store.put_trial(&t).await.unwrap();
+
+    let (submission, _) = store
+        .create_submission(NewSubmission {
+            user_id: user.id,
+            trial_id: t.id,
+            trial_version: t.version,
+            trial_package_cid: t.content_cid.clone(),
+            source_cid: "b3:source".into(),
+            idempotency_key: unique("idem-"),
+        })
+        .await
+        .unwrap();
+
+    t.version += 1;
+    t.content_cid = "b3:evaluation-v2".into();
+    store.put_trial(&t).await.unwrap();
+
+    let leased = store
+        .lease_jobs(&unique("w-"), TrustClass::Trusted, 64, 30)
+        .await
+        .unwrap();
+    let job = leased
+        .iter()
+        .find(|job| job.job_id == submission.job_id)
+        .expect("submission should be leased");
+    assert_eq!(job.trial_package_cid, "b3:evaluation-v1");
+    assert_eq!(job.trial_version, 1);
+}
+
 async fn accepted_result_is_idempotent_and_updates_rank<S: MetadataStore + ?Sized>(store: &S) {
     let user = store
         .create_user(&Username::parse(&unique("solver")).unwrap())
@@ -314,6 +358,7 @@ async fn accepted_result_is_idempotent_and_updates_rank<S: MetadataStore + ?Size
             user_id: user.id,
             trial_id: t.id,
             trial_version: t.version,
+            trial_package_cid: t.content_cid.clone(),
             source_cid: "b3:source".into(),
             idempotency_key: unique("idem-"),
         })
@@ -328,7 +373,13 @@ async fn accepted_result_is_idempotent_and_updates_rank<S: MetadataStore + ?Size
     assert!(leased.iter().any(|j| j.job_id == submission.job_id));
 
     let outcome = store
-        .record_result(submission.job_id, &worker, Verdict::Accepted, "b3:manifest")
+        .record_result(
+            submission.job_id,
+            &worker,
+            &submission.trial_package_cid,
+            Verdict::Accepted,
+            "b3:manifest",
+        )
         .await
         .unwrap();
     assert!(outcome.accepted);
@@ -344,6 +395,7 @@ async fn accepted_result_is_idempotent_and_updates_rank<S: MetadataStore + ?Size
         .record_result(
             submission.job_id,
             &worker,
+            &submission.trial_package_cid,
             Verdict::WrongAnswer,
             "b3:manifest",
         )
@@ -387,6 +439,7 @@ async fn system_faults_do_not_touch_user_state<S: MetadataStore + ?Sized>(store:
             user_id: user.id,
             trial_id: t.id,
             trial_version: t.version,
+            trial_package_cid: t.content_cid.clone(),
             source_cid: "b3:source".into(),
             idempotency_key: unique("idem-"),
         })
@@ -402,6 +455,7 @@ async fn system_faults_do_not_touch_user_state<S: MetadataStore + ?Sized>(store:
         .record_result(
             submission.job_id,
             &worker,
+            &submission.trial_package_cid,
             Verdict::InternalError,
             "b3:manifest",
         )

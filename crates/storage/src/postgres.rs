@@ -153,6 +153,7 @@ fn submission_from_row(row: &sqlx::postgres::PgRow) -> Result<Submission> {
         user_id: UserId::from_uuid(row.try_get::<Uuid, _>("user_id").map_err(db)?),
         trial_id: TrialId::from_uuid(row.try_get::<Uuid, _>("trial_id").map_err(db)?),
         trial_version: row.try_get::<i32, _>("trial_version").map_err(db)? as u32,
+        trial_package_cid: row.try_get("trial_package_cid").map_err(db)?,
         source_cid: row.try_get("source_cid").map_err(db)?,
         state: serde_json::from_value(state)
             .map_err(|e| Error::Internal(format!("corrupt submission state: {e}")))?,
@@ -409,8 +410,9 @@ impl MetadataStore for PostgresStore {
         let mut tx = self.pool.begin().await.map_err(db)?;
         let inserted = sqlx::query(
             "INSERT INTO submissions
-                 (id, job_id, user_id, trial_id, trial_version, source_cid, state, idempotency_key)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 (id, job_id, user_id, trial_id, trial_version, trial_package_cid,
+                  source_cid, state, idempotency_key)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (user_id, idempotency_key) DO NOTHING
              RETURNING *",
         )
@@ -419,6 +421,7 @@ impl MetadataStore for PostgresStore {
         .bind(new.user_id.as_uuid())
         .bind(new.trial_id.as_uuid())
         .bind(new.trial_version as i32)
+        .bind(&new.trial_package_cid)
         .bind(&new.source_cid)
         .bind(&state)
         .bind(&new.idempotency_key)
@@ -523,9 +526,8 @@ impl MetadataStore for PostgresStore {
         for row in &rows {
             let job_id: Uuid = row.try_get("job_id").map_err(db)?;
             let detail = sqlx::query(
-                "SELECT s.source_cid, s.trial_version, t.content_cid
-                 FROM submissions s JOIN trials t ON t.id = s.trial_id
-                 WHERE s.job_id = $1",
+                "SELECT source_cid, trial_version, trial_package_cid
+                 FROM submissions WHERE job_id = $1",
             )
             .bind(job_id)
             .fetch_one(&mut *tx)
@@ -546,7 +548,7 @@ impl MetadataStore for PostgresStore {
             leased.push(LeasedJob {
                 job_id: JobId::from_uuid(job_id),
                 source_cid: detail.try_get("source_cid").map_err(db)?,
-                trial_package_cid: detail.try_get("content_cid").map_err(db)?,
+                trial_package_cid: detail.try_get("trial_package_cid").map_err(db)?,
                 trial_version: detail.try_get::<i32, _>("trial_version").map_err(db)? as u32,
                 limits: ExecutionLimits::default(),
                 // Invariant: hidden tests only ever reach a Trusted worker.
@@ -563,6 +565,7 @@ impl MetadataStore for PostgresStore {
         &self,
         job_id: JobId,
         worker_id: &str,
+        trial_package_cid: &str,
         verdict: Verdict,
         result_manifest_hash: &str,
     ) -> Result<SubmissionOutcome> {
@@ -577,6 +580,13 @@ impl MetadataStore for PostgresStore {
             .map_err(db)?
             .ok_or_else(|| Error::not_found("job", job_id))?;
         let submission = submission_from_row(&submission_row)?;
+
+        if submission.trial_package_cid != trial_package_cid {
+            return Err(Error::invalid(
+                "trial_package_cid",
+                "does not match the package leased for this submission",
+            ));
+        }
 
         let holder: Option<String> =
             sqlx::query("SELECT worker_id FROM job_queue WHERE job_id = $1")

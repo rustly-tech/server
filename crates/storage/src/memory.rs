@@ -224,6 +224,7 @@ impl MetadataStore for MemoryStore {
             user_id: new.user_id,
             trial_id: new.trial_id,
             trial_version: new.trial_version,
+            trial_package_cid: new.trial_package_cid,
             source_cid: new.source_cid,
             state: SubmissionState::Queued,
             created_at: Timestamp::now(),
@@ -279,11 +280,10 @@ impl MetadataStore for MemoryStore {
             tables.leases.insert(job_id, worker_id.to_owned());
             let submission_id = tables.job_index[&job_id];
             let submission = tables.submissions[&submission_id].clone();
-            let trial = tables.trials[&submission.trial_id].clone();
             leased.push(LeasedJob {
                 job_id,
                 source_cid: submission.source_cid.clone(),
-                trial_package_cid: trial.content_cid.clone(),
+                trial_package_cid: submission.trial_package_cid.clone(),
                 trial_version: submission.trial_version,
                 limits: ExecutionLimits::default(),
                 // Invariant: hidden tests only ever reach a Trusted worker.
@@ -303,6 +303,7 @@ impl MetadataStore for MemoryStore {
         &self,
         job_id: JobId,
         worker_id: &str,
+        trial_package_cid: &str,
         verdict: Verdict,
         _result_manifest_hash: &str,
     ) -> Result<SubmissionOutcome> {
@@ -313,6 +314,13 @@ impl MetadataStore for MemoryStore {
             .get(&job_id)
             .ok_or_else(|| Error::not_found("job", job_id))?;
         let submission = tables.submissions[&submission_id].clone();
+
+        if submission.trial_package_cid != trial_package_cid {
+            return Err(Error::invalid(
+                "trial_package_cid",
+                "does not match the package leased for this submission",
+            ));
+        }
 
         if let Some(holder) = tables.leases.get(&job_id) {
             if holder != worker_id {

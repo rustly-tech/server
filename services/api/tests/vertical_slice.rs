@@ -312,6 +312,7 @@ async fn the_full_submit_lease_judge_loop_updates_rank_status_and_the_feed() {
     assert_eq!(jobs[0]["job_id"], job_id);
     assert_eq!(jobs[0]["may_receive_hidden_tests"], true);
     assert_eq!(jobs[0]["backend"], "wasmtime");
+    let trial_package_cid = jobs[0]["trial_package_cid"].as_str().unwrap().to_owned();
     assert!(jobs[0]["limits"]["fuel"].as_u64().unwrap() > 0);
     // The lease carries identifiers, not payloads.
     assert!(!lease.to_string().contains("fn main"));
@@ -338,6 +339,7 @@ async fn the_full_submit_lease_judge_loop_updates_rank_status_and_the_feed() {
     let report = json!({
         "protocol_version": BROKER_PROTOCOL_VERSION,
         "worker_id": "worker-1",
+        "trial_package_cid": trial_package_cid,
         "verdict": "AC",
         "result_manifest_hash": "b3:manifest",
         "peak_memory_bytes": 1048576,
@@ -345,6 +347,18 @@ async fn the_full_submit_lease_judge_loop_updates_rank_status_and_the_feed() {
         "compile_ms": 830,
         "used_cached_artifact": false
     });
+    let mut wrong_package = report.clone();
+    wrong_package["trial_package_cid"] = json!("b3:wrong-package");
+    let (status, error) = h
+        .post(
+            &format!("/api/v1/judge/jobs/{job_id}/result"),
+            Some(&worker_token),
+            wrong_package,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["code"], "invalid_request");
+
     let (status, ack) = h
         .post(
             &format!("/api/v1/judge/jobs/{job_id}/result"),
@@ -590,18 +604,23 @@ async fn revealing_solutions_forfeits_rank_credit_but_still_solves() {
     let job_id = created["job_id"].as_str().unwrap().to_owned();
 
     let worker_token = h.worker_token("worker-r", TrustClass::Trusted);
-    h.post(
-        "/api/v1/judge/leases",
-        Some(&worker_token),
-        json!({
-            "protocol_version": BROKER_PROTOCOL_VERSION,
-            "worker_id": "worker-r",
-            "trust_class": "trusted",
-            "backends": ["wasmtime"],
-            "capacity": 4
-        }),
-    )
-    .await;
+    let (_, lease) = h
+        .post(
+            "/api/v1/judge/leases",
+            Some(&worker_token),
+            json!({
+                "protocol_version": BROKER_PROTOCOL_VERSION,
+                "worker_id": "worker-r",
+                "trust_class": "trusted",
+                "backends": ["wasmtime"],
+                "capacity": 4
+            }),
+        )
+        .await;
+    let trial_package_cid = lease["jobs"][0]["trial_package_cid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
 
     h.post(
         &format!("/api/v1/judge/jobs/{job_id}/result"),
@@ -609,6 +628,7 @@ async fn revealing_solutions_forfeits_rank_credit_but_still_solves() {
         json!({
             "protocol_version": BROKER_PROTOCOL_VERSION,
             "worker_id": "worker-r",
+            "trial_package_cid": trial_package_cid,
             "verdict": "AC",
             "result_manifest_hash": "b3:m",
             "peak_memory_bytes": 1024,
@@ -645,18 +665,23 @@ async fn an_infrastructure_failure_is_never_reported_as_the_users_fault() {
     let job_id = created["job_id"].as_str().unwrap().to_owned();
 
     let worker_token = h.worker_token("worker-i", TrustClass::Trusted);
-    h.post(
-        "/api/v1/judge/leases",
-        Some(&worker_token),
-        json!({
-            "protocol_version": BROKER_PROTOCOL_VERSION,
-            "worker_id": "worker-i",
-            "trust_class": "trusted",
-            "backends": ["wasmtime"],
-            "capacity": 4
-        }),
-    )
-    .await;
+    let (_, lease) = h
+        .post(
+            "/api/v1/judge/leases",
+            Some(&worker_token),
+            json!({
+                "protocol_version": BROKER_PROTOCOL_VERSION,
+                "worker_id": "worker-i",
+                "trust_class": "trusted",
+                "backends": ["wasmtime"],
+                "capacity": 4
+            }),
+        )
+        .await;
+    let trial_package_cid = lease["jobs"][0]["trial_package_cid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
 
     let (_, ack) = h
         .post(
@@ -665,6 +690,7 @@ async fn an_infrastructure_failure_is_never_reported_as_the_users_fault() {
             json!({
                 "protocol_version": BROKER_PROTOCOL_VERSION,
                 "worker_id": "worker-i",
+                "trial_package_cid": trial_package_cid,
                 "verdict": "IE",
                 "result_manifest_hash": "b3:m",
                 "peak_memory_bytes": 0,

@@ -216,7 +216,13 @@ pub async fn result(
 
     let outcome = state
         .store
-        .record_result(job_id, &worker_id, body.verdict, &body.result_manifest_hash)
+        .record_result(
+            job_id,
+            &worker_id,
+            &body.trial_package_cid,
+            body.verdict,
+            &body.result_manifest_hash,
+        )
         .await
         .map_err(|e| ApiError::new(e, request_id.clone()))?;
 

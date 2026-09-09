@@ -187,6 +187,8 @@ pub struct Submission {
     pub trial_id: TrialId,
     /// Trial content version this submission was judged against.
     pub trial_version: u32,
+    /// Immutable evaluation package selected when the submission was created.
+    pub trial_package_cid: String,
     /// BLAKE3 CID of the submitted source in the data plane.
     pub source_cid: String,
     /// Current state.

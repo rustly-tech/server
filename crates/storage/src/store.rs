@@ -55,6 +55,8 @@ pub struct NewSubmission {
     pub trial_id: TrialId,
     /// Trial content version at submission time.
     pub trial_version: u32,
+    /// Trial package CID selected at submission time.
+    pub trial_package_cid: String,
     /// CID of the submitted source in the data plane.
     pub source_cid: String,
     /// Client idempotency key, unique per user.
@@ -163,6 +165,7 @@ pub trait MetadataStore: Send + Sync + 'static {
         &self,
         job_id: JobId,
         worker_id: &str,
+        trial_package_cid: &str,
         verdict: rustly_domain::Verdict,
         result_manifest_hash: &str,
     ) -> Result<SubmissionOutcome>;

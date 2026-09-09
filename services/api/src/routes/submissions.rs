@@ -81,6 +81,7 @@ pub async fn create(
             user_id,
             trial_id: trial.id,
             trial_version: trial.version,
+            trial_package_cid: trial.content_cid.clone(),
             source_cid: body.source_cid,
             idempotency_key: body.idempotency_key,
         })
