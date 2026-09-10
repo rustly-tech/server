@@ -527,6 +527,28 @@ async fn the_full_submit_lease_judge_loop_updates_rank_status_and_the_feed() {
     assert_eq!(done["state"], "finished");
     assert_eq!(done["verdict"], "AC");
 
+    // A reconnect after completion receives the durable terminal state and
+    // closes without waiting for a transition that can never occur.
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(format!("/api/v1/submissions/{submission_id}/events"))
+        .header(header::AUTHORIZATION, format!("Bearer {}", h.user_token))
+        .body(Body::empty())
+        .unwrap();
+    let response = h.app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let event_bytes = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        response.into_body().collect(),
+    )
+    .await
+    .expect("a terminal SSE stream must close")
+    .unwrap()
+    .to_bytes();
+    let events = String::from_utf8(event_bytes.to_vec()).unwrap();
+    assert!(events.contains("\"state\":\"finished\""));
+    assert!(events.contains("\"verdict\":\"AC\""));
+
     let (_, trial) = h
         .get(
             "/api/v1/trials/ownership-move-or-borrow",

@@ -195,18 +195,18 @@ pub async fn stream(
         }
     });
 
-    // Close the stream after the terminal transition has been delivered.
-    let mut finished = false;
-    let stream = stream::once(async move { initial })
-        .chain(live)
-        .take_while(move |event: &SubmissionEvent| {
-            let stop = finished;
-            if event.state.is_terminal() {
-                finished = true;
-            }
-            async move { !stop }
-        })
-        .map(|event| Ok(sse_event(&event)));
+    // Close immediately after delivering the terminal transition. `take_while`
+    // cannot express an inclusive terminal event without waiting for one more
+    // upstream item, which left completed browser streams open indefinitely.
+    let events = Box::pin(stream::once(async move { initial }).chain(live));
+    let stream = stream::unfold((events, false), |(mut events, finished)| async move {
+        if finished {
+            return None;
+        }
+        let event = events.next().await?;
+        let finished = event.state.is_terminal();
+        Some((Ok::<_, Infallible>(sse_event(&event)), (events, finished)))
+    });
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
