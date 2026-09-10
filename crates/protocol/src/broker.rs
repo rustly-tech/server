@@ -138,9 +138,9 @@ impl Default for ExecutionLimits {
         Self {
             compile_wall_ms: 20_000,
             run_wall_ms: 2_000,
-            memory_bytes: 256 * 1024 * 1024,
-            output_bytes: 256 * 1024,
-            fuel: 2_000_000_000,
+            memory_bytes: 64 * 1024 * 1024,
+            output_bytes: 64 * 1024,
+            fuel: 50_000_000,
         }
     }
 }
