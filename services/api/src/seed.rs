@@ -27,10 +27,10 @@ pub async fn ownership_slice(
         difficulty: Difficulty::Easy,
         topics: vec![TrialTopic::Ownership, TrialTopic::Borrowing],
         lifecycle: TrialLifecycle::Official,
-        version: 1,
-        // Placeholder CID. The real value is produced by the content pipeline
-        // and pinned in the published Trial package.
-        content_cid: "b3:0000000000000000000000000000000000000000000000000000000000000000".into(),
+        version: 2,
+        // CID of evaluation/trials/ownership-move-or-borrow/v2/package.json.
+        // The package itself stays private and is fetched only by trusted workers.
+        content_cid: "b3:25d53043ef9403604ed11f508820065f875446d4eafdba694c2d00826025621c".into(),
         published_at: Timestamp::now(),
     };
     store.put_trial(&trial).await?;
