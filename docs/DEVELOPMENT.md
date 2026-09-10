@@ -43,3 +43,18 @@ RUSTLY_TEST_DATABASE_URL=postgres://postgres:rustly@localhost:5432/rustly_test \
 
 The HTTP integration tests use the in-memory store. The shared conformance suite
 checks that both stores follow the same product rules.
+
+## Worker credentials
+
+Operator-managed judge workers authenticate with a token whose trust class is
+part of the signed claims. Issue one with the same signing secret used by the
+API, then place the output in the worker's secret store:
+
+```sh
+RUSTLY_TOKEN_SECRET=the-same-secret-used-by-the-api \
+  cargo run -q -p rustly-api --bin rustly-worker-token -- \
+  ownership-worker-1 trusted 2592000
+```
+
+The command prints only the token. A worker cannot promote itself by changing
+the trust class in its lease request.
