@@ -135,7 +135,7 @@ pub async fn lease(
                 source_cid: job.source_cid,
                 trial_package_cid: job.trial_package_cid,
                 trial_version: job.trial_version,
-                environment_id: "rust-1.85-wasm32-wasip1".to_owned(),
+                environment_id: "rust-1.88-wasm32-wasip1".to_owned(),
                 limits: job.limits,
                 backend: ExecutionBackend::Wasmtime,
                 may_receive_hidden_tests: job.may_receive_hidden_tests,
