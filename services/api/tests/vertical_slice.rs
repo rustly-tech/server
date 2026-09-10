@@ -225,6 +225,42 @@ async fn framework_failures_are_json_and_guest_auth_is_rate_limited() {
         let body: Value = serde_json::from_slice(&bytes).unwrap();
         assert!(body["request_id"].as_str().is_some());
     }
+
+    for (content_type, body, expected, code) in [
+        (
+            "application/json",
+            "{not-json",
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+        ),
+        (
+            "text/plain",
+            "{}",
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "unsupported_media_type",
+        ),
+    ] {
+        let response = h
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/v1/uploads/source")
+                    .header(header::AUTHORIZATION, format!("Bearer {}", h.user_token))
+                    .header(header::CONTENT_TYPE, content_type)
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+        let request_id = response.headers()["x-request-id"].clone();
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["code"], code);
+        assert_eq!(body["request_id"], request_id.to_str().unwrap());
+    }
 }
 
 #[tokio::test]
@@ -859,6 +895,12 @@ async fn oversized_bodies_are_refused_so_source_cannot_travel_through_the_api() 
 
     let response = h.app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+    let request_id = response.headers()["x-request-id"].clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["code"], "payload_too_large");
+    assert_eq!(body["request_id"], request_id.to_str().unwrap());
 }
 
 #[tokio::test]
