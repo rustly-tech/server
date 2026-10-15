@@ -36,7 +36,7 @@ rustly-community = { path = "crates/community", version = "0.1.0" }
 anyhow = "1.0"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["macros", "json"] }
-base64 = "0.22"
+base64 = "0.23"
 futures-core = "0.3"
 futures-util = "0.3"
 hmac = "0.12"
