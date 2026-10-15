@@ -39,7 +39,7 @@ axum = { version = "0.8", features = ["macros", "json"] }
 base64 = "0.22"
 futures-core = "0.3"
 futures-util = "0.3"
-hmac = "0.12"
+hmac = "0.13"
 http = "1"
 http-body-util = "0.1"
 rand = "0.8"
